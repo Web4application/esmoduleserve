@@ -21,6 +21,7 @@ class ModuleServer {
     this.maxDepth = options.maxDepth == null ? 1 : options.maxDepth
     this.prefix = options.prefix || "_m"
     this.prefixTest = new RegExp(`^/${this.prefix}/(.*)`)
+    this.transform = options.transform || ((_, c) => c)
     if (this.root.charAt(this.root.length - 1) != "/") this.root += "/"
     // Maps from paths (relative to root dir) to cache entries
     this.cache = Object.create(null)
@@ -53,7 +54,7 @@ class ModuleServer {
       if (/\.map$/.test(fullPath)) {
         cached = this.cache[path] = new Cached(code, "application/json")
       } else {
-        let {code: resolvedCode, error} = this.resolveImports(fullPath, code)
+        let {code: resolvedCode, error} = this.resolveImports(fullPath, this.transform(fullPath, code))
         if (error) { send(500, error); return true }
         cached = this.cache[path] = new Cached(resolvedCode, "application/javascript")
       }
