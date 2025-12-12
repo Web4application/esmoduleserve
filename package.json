@@ -20,9 +20,9 @@
   "author": "Marijn Haverbeke <marijn@haverbeke.berlin>",
   "license": "MIT",
   "dependencies": {
-    "resolve": "^1.15.1",
-    "serve-static": "^1.14.1",
     "acorn": "^8.0.4",
-    "acorn-walk": "^8.0.0"
+    "acorn-walk": "^8.0.0",
+    "import-meta-resolve": "^4.2.0",
+    "serve-static": "^1.14.1"
   }
 }

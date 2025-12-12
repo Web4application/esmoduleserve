@@ -1,5 +1,5 @@
 const pth = require("path"), fs = require("fs")
-const resolve = require("resolve")
+const resolve = require("import-meta-resolve")
 const {parse: parseURL} = require("url")
 const crypto = require("crypto")
 const acorn = require("acorn"), walk = require("acorn-walk")
@@ -17,7 +17,6 @@ class Cached {
 class ModuleServer {
   constructor(options) {
     this.root = unwin(options.root)
-    this.self = findSelf(this.root)
     this.maxDepth = options.maxDepth == null ? 1 : options.maxDepth
     this.prefix = options.prefix || "_m"
     this.prefixTest = new RegExp(`^/${this.prefix}/(.*)`)
@@ -72,33 +71,29 @@ class ModuleServer {
 
   // Resolve a module path to a relative filepath where
   // the module's file exists.
-  resolveModule(basePath, path) {
+  resolveModule(srcPath, path) {
     let resolved
-    if (path == this.self) {
-      path = "."
-      basePath = this.root
-    }
-    try { resolved = resolveMod(path, basePath) }
+    try { resolved = resolveMod(path, srcPath) }
     catch(e) { return {error: e.toString()} }
 
     // Builtin modules resolve to strings like "fs". Try again with
     // slash which makes it possible to locally install an equivalent.
     if (resolved.indexOf("/") == -1) {
-      try { resolved = resolveMod(path + "/", basePath) }
+      try { resolved = resolveMod(path + "/", srcPath) }
       catch(e) { return {error: e.toString()} }
     }
 
     return {path: "/" + this.prefix + "/" + unwin(pth.relative(this.root, resolved))}
   }
 
-  resolveImports(basePath, code) {
+  resolveImports(srcPath, code) {
     let patches = [], ast
     try { ast = acorn.parse(code, {sourceType: "module", ecmaVersion: "latest"}) }
     catch(error) { return {error: error.toString()} }
     let patchSrc = (node) => {
       if (!node.source) return
       let orig = (0, eval)(code.slice(node.source.start, node.source.end))
-      let {error, path} = this.resolveModule(pth.dirname(basePath), orig)
+      let {error, path} = this.resolveModule(srcPath, orig)
       if (error) return {error}
       patches.push({from: node.source.start, to: node.source.end, text: JSON.stringify(dash(path))})
     }
@@ -107,7 +102,7 @@ class ModuleServer {
       ImportDeclaration: patchSrc,
       ImportExpression: node => {
         if (node.source.type == "Literal") {
-          let {error, path} = this.resolveModule(pth.dirname(basePath), node.source.value)
+          let {error, path} = this.resolveModule(srcPath, node.source.value)
           if (!error)
             patches.push({from: node.source.start, to: node.source.end, text: JSON.stringify(dash(path))})
         }
@@ -125,14 +120,9 @@ function undash(path) { return path.replace(/(^|\/)__(?=$|\/)/g, "$1..") }
 
 const unwin = pth.sep == "\\" ? s => s.replace(/\\/g, "/") : s => s
 
-function packageFilter(pkg) {
-  if (pkg.module) pkg.main = pkg.module
-  else if (pkg.jnext) pkg.main = pkg.jsnext
-  return pkg
-}
-
 function resolveMod(path, base) {
-  return fs.realpathSync(resolve.sync(path, {basedir: base, packageFilter}))
+  let url = resolve.resolve(path, "file://" + base)
+  return fs.realpathSync(url.slice(7))
 }
 
 function hash(str) {
@@ -145,16 +135,4 @@ function countParentRefs(path) {
   let re = /(^|\/)\.\.(?=\/|$)/g, count = 0
   while (re.exec(path)) count++
   return count
-}
-
-function findSelf(dir) {
-  for (;;) {
-    let pkg = pth.join(dir, "package.json"), json
-    try { json = JSON.parse(fs.readFileSync(pkg, "utf8")) }
-    catch {}
-    if (json) return json.name
-    let next = pth.dirname(dir)
-    if (next == dir) return null
-    dir = next
-  }
 }
