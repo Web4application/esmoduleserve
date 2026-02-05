@@ -3,7 +3,7 @@
 const ModuleServer = require("./moduleserver")
 const path = require("path")
 
-let host = "localhost", port = 8080, dir = ".", prefix = null, maxDepth = 1
+let host = "127.0.0.1", port = 8080, dir = ".", prefix = null, maxDepth = 1
 
 function usage() {
   console.log("Usage: esmoduleserve [--port port] [--host host] [--depth n] [--prefix prefix] [dir]")
